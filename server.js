@@ -37,37 +37,46 @@ const server = app.listen(port, () => {
     console.log('App listening on port %PORT%'.replace('%PORT%',port))
 });
 
-app.get('/app/', (req, res) => {
-    res.status(200).end('OK')
-    res.type('text/plain')
+if (args.log == 'false') {
+  console.log("Nothing")
+} else {
+  const accessLog = fs.createWriteStream('access.log', { flags: 'a' })
+  app.use(morgan('combined', { stream: accessLog }))
+}
 
+app.use((req, res, next) => {
+  let logdata = {
+      remoteaddr: req.ip,
+      remoteuser: req.user,
+      time: Date.now(),
+      method: req.method,
+      url: req.url,
+      protocol: req.protocol,
+      httpversion: req.httpVersion,
+      status: res.statusCode,
+      referrer: req.headers['referer'],
+      useragent: req.headers['user-agent']
+  };
+  const stmt = db.prepare('INSERT INTO accesslog (remoteaddr, remoteuser, time, method, url, protocol, httpversion, status, referrer, useragent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+  const info = stmt.run(logdata.remoteaddr, logdata.remoteuser, logdata.time, logdata.method, logdata.url, logdata.protocol, logdata.httpversion, logdata.status, logdata.referrer, logdata.useragent)
+  next();
 })
 
-app.get('/app/flip/', (req, res) => {
-    var flip = coinFlip()
-    res.status(200).json({ "flip" : flip})
-})
+if (args.debug || args.d) {
+  app.get('/app/log/access/', (req, res, next) => {
+      const stmt = db.prepare("SELECT * FROM accesslog").all();
+    res.status(200).json(stmt);
+  })
 
-app.get('/app/flips/:number', (req, res) => {
-    var flips = coinFlips(req.params.number)
-    res.status(200).json({ "raw" : flips, "summary" : countFlips(flips)})
-})
-
-app.get('/app/flip/call/heads', (req, res) => {
-    var heads = flipACoin("heads")
-    res.status(200).json(heads)
-})
-
-app.get('/app/flip/call/tails', (req, res) => {
-    var tails = flipACoin("tails")
-    res.status(200).json(tails)
-})
+  app.get('/app/error/', (req, res, next) => {
+      throw new Error('Error test')
+  })
+}
 
 app.use(function(req, res) {
-    res.status(404).end("Endpoint does not exist")
-    res.type("text/plain")
+  res.status(404).send("404 NOT FOUND")
+  res.type("text/plain")  
 })
-
 function coinFlip() {
     return Math.random() > .5 ? ("heads") : ("tails")
 }

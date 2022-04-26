@@ -26,6 +26,10 @@ if (args.help || args.h) {
     process.exit(0)
 }
 
+const db = require('./database.js')
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+
 args['port']
 const port = args.port || process.env.PORT || 5000
 
